@@ -7,11 +7,7 @@ from airflow.models import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator,BranchPythonOperator
 
-client=bigquery.Client(project=MYPROJECT)
-token_failed=MYTOKEN
-Host=MYHOST
-User=MYUSER
-Password=MYPASSWORD
+client=bigquery.Client(project='cbd-bi-dev')
 
 def check_coupon_missing(**kwargs):
     try:
@@ -22,9 +18,9 @@ def check_coupon_missing(**kwargs):
             days=7
         print(days)
         coupon_name_today=[]
-        coupon_name_default=['Coupon1','Coupon2']
+        coupon_name_default=['Coupon Carabao Dang','Coupon Cash 100']
 
-        query_stm="""SELECT CouponName FROM `MYPROJECT.dataset.table_name` 
+        query_stm="""SELECT CouponName FROM `cbd-bi-dev.cj.dp_cj_redeem` 
         WHERE Partition_ImportDate = date_sub(current_date('Asia/Bangkok'),interval {} day)
         group by CouponName
         LIMIT 1000""".format(days)
@@ -53,7 +49,7 @@ def check_rowdup(**kwargs):
     days=int(kwargs['ti'].xcom_pull(task_ids='check_coupon_missing_task',key='days'))
     print('start')
     query_stm="""SELECT RowId,count(*) as cnt
-    FROM `MYPROJECT.dataset.table_name` 
+    FROM `cbd-bi-dev.cj.dp_cj_redeem` 
     WHERE Partition_ImportDate = date_sub(current_date('Asia/Bangkok'),interval {} day)
     group by RowId
     having cnt>1""".format(days)
@@ -78,6 +74,9 @@ def insert_db(**kwargs):
     df=query_job.result().to_dataframe()
     print('start insert')
     
+    Host='poc-gcp-lakehub.c5uz6kwyt6qx.ap-southeast-1.rds.amazonaws.com'
+    User='admin'
+    Password='rEuf2PEN7QGPeivFebrI'
     try:
         my_conn = create_engine("mysql+pymysql://"+User+":"+Password+"@"+Host+"/z_poc") 
         conn  = pymysql.connect(host=Host, user=User, password=Password)
@@ -98,6 +97,7 @@ def noti(**kwargs):
         except Exception as e2:
             message=kwargs['message']
 
+    token_failed='0TSA3ts3YQk66lD421Y6k7mQO0nT89MlxPbiavcVogi'
     url_sticker = '&stickerPackageId=6632&stickerId=11825375'
     url = 'https://notify-api.line.me/api/notify?message={}{}'.format(message,url_sticker)
     headers={'Content-Type':'application/x-www-form-urlencoded','Authorization': 'Bearer '+token_failed}
@@ -110,6 +110,7 @@ def noti_insert(**kwargs):
     except Exception as e1:
         message="failed message"
 
+    token_failed='0TSA3ts3YQk66lD421Y6k7mQO0nT89MlxPbiavcVogi'
     url_sticker = '&stickerPackageId=6632&stickerId=11825375'
     url = 'https://notify-api.line.me/api/notify?message={}{}'.format(message,url_sticker)
     headers={'Content-Type':'application/x-www-form-urlencoded','Authorization': 'Bearer '+token_failed}
