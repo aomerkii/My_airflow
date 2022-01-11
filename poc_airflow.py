@@ -6,7 +6,11 @@ import requests
 from airflow.models import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python import PythonOperator,BranchPythonOperator
+from airflow.providers.mysql.hooks.mysql import MySqlHook
+from cre import *
 
+token_failed=cre_token_failed
+mysql_connection="poc_mysql_gcp"
 client=bigquery.Client(project='cbd-bi-dev')
 
 def check_coupon_missing(**kwargs):
@@ -45,6 +49,7 @@ def check_coupon_missing(**kwargs):
     except Exception as e1:
         print(e1)     
 
+
 def check_rowdup(**kwargs):
     days=int(kwargs['ti'].xcom_pull(task_ids='check_coupon_missing_task',key='days'))
     print('start')
@@ -74,15 +79,10 @@ def insert_db(**kwargs):
     df=query_job.result().to_dataframe()
     print('start insert')
     
-    Host='poc-gcp-lakehub.c5uz6kwyt6qx.ap-southeast-1.rds.amazonaws.com'
-    User='admin'
-    Password='rEuf2PEN7QGPeivFebrI'
     try:
-        my_conn = create_engine("mysql+pymysql://"+User+":"+Password+"@"+Host+"/z_poc") 
-        conn  = pymysql.connect(host=Host, user=User, password=Password)
-        cur = conn.cursor()
-        print('ok')
-        df=df.to_sql('cj_redeem',con=my_conn,if_exists='append',index=False)
+        df=df.values.tolist()
+        mysql=MySqlHook(mysql_connection)
+        mysql.insert_rows(table='cj_redeem',rows=df)
         kwargs['ti'].xcom_push(key='message',value='succeeded')
     except Exception as e1:
         print(e1)
@@ -97,7 +97,6 @@ def noti(**kwargs):
         except Exception as e2:
             message=kwargs['message']
 
-    token_failed='0TSA3ts3YQk66lD421Y6k7mQO0nT89MlxPbiavcVogi'
     url_sticker = '&stickerPackageId=6632&stickerId=11825375'
     url = 'https://notify-api.line.me/api/notify?message={}{}'.format(message,url_sticker)
     headers={'Content-Type':'application/x-www-form-urlencoded','Authorization': 'Bearer '+token_failed}
@@ -110,7 +109,6 @@ def noti_insert(**kwargs):
     except Exception as e1:
         message="failed message"
 
-    token_failed='0TSA3ts3YQk66lD421Y6k7mQO0nT89MlxPbiavcVogi'
     url_sticker = '&stickerPackageId=6632&stickerId=11825375'
     url = 'https://notify-api.line.me/api/notify?message={}{}'.format(message,url_sticker)
     headers={'Content-Type':'application/x-www-form-urlencoded','Authorization': 'Bearer '+token_failed}
